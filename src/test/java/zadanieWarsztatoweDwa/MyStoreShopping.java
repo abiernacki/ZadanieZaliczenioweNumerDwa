@@ -4,17 +4,23 @@ import cucumber.api.java.en.And;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
+import org.junit.Assert;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 
 public class MyStoreShopping {
 
     private WebDriver driver;
+
+    private boolean isDiscountPrice;
 
     @Given("wlaczamy strone sklepu PrestaShop, mamy zarejestrowanego uzytkownika")
     public void userIsLoggedInPrestaShop() {
@@ -51,18 +57,30 @@ public class MyStoreShopping {
     public void wybieramyDoZakupuHummingbirdPrintedSweater() {
 
         WebElement searchField = driver.findElement(By.name("s"));
-        searchField.sendKeys("Hummingbird Printed Sweater");
+        searchField.sendKeys("Hummingbird printed t-shirt");
         searchField.submit();
 
-        WebElement selectedProduct = driver.findElement(By.xpath("//*[@id=\"js-product-list\"]//article//*[@class='product-description']//a[text()[contains(.,'Hummingbird printed sweater')]]"));
+        WebElement selectedProduct = driver.findElement(By.xpath("//*[@id=\"js-product-list\"]//article//*[@class='product-description']//a[text()[contains(.,'Hummingbird printed t-shirt')]]"));
         selectedProduct.click();
+
+        try {
+            WebElement addressesWindow = driver.findElement(By.cssSelector(".discount.discount-percentage"));
+            System.out.println("Koszulka jest w promocji!! Kup taniej o 20%");
+            isDiscountPrice = true;
+        } catch (NoSuchElementException e) {
+            System.out.println("Koszulka nie jest w promocji");
+            isDiscountPrice = false;
+        }
+
+        WebElement countryInput = driver.findElement(By.xpath("//label/input[@value ='11']"));
+        countryInput.click();
     }
 
-    @And("wybieramy rozmiar i liczbe sztuk, dodajemy produkt do koszyka przechodzimy do proceed to checkout")
-    public void wybieramyRozmiarILiczbeSztukDodajemyProduktDoKoszykaPrzechodzimyDoProceedToCheckout() {
+    @And("wybieramy (.*) i (.*), dodajemy produkt do koszyka przechodzimy do proceed to checkout")
+    public void wybieramyRozmiarILiczbeSztukDodajemyProduktDoKoszykaPrzechodzimyDoProceedToCheckout(String size, String quantity) {
 
-        WebElement size = driver.findElement(By.id("group_1"));
-        size.sendKeys("L");
+        WebElement sizeSelect = driver.findElement(By.id("group_1"));
+        sizeSelect.sendKeys(size);
 
         try {
             Thread.sleep(3000);
@@ -70,9 +88,9 @@ public class MyStoreShopping {
             e.printStackTrace();
         }
 
-        WebElement quantity = driver.findElement(By.id("quantity_wanted"));
-        quantity.clear();
-        quantity.sendKeys("5");
+        WebElement quantitySelect = driver.findElement(By.id("quantity_wanted"));
+        quantitySelect.clear();
+        quantitySelect.sendKeys(quantity);
 
         WebElement addToCart = driver.findElement(By.cssSelector(".btn.btn-primary.add-to-cart"));
         addToCart.click();
@@ -117,9 +135,29 @@ public class MyStoreShopping {
     @Then("screenshot z potwierdzeniem zamówienia i kwota")
     public void screenshotZPotwierdzeniemZamówieniaIKwota() throws IOException {
 
+        Random random= new Random();
+        String number = String.valueOf(random.nextInt(10000000));
+
         TakesScreenshot scrShot = ((TakesScreenshot)driver);
         File srcFile = scrShot.getScreenshotAs(OutputType.FILE);
-        File destFile = new File("src/main/resources/screenshot/foto.png");
+        File destFile = new File("src/main/resources/screenshot/foto"+number+".png");
         FileUtils.copyFile(srcFile, destFile);
+
+        WebElement orderSelect = driver.findElement(By.cssSelector("a[title='View my customer account']"));
+        orderSelect.click();
+
+        WebElement historySelect = driver.findElement(By.id("history-link"));
+        historySelect.click();
+
+        List<WebElement> money = driver.findElements(By.xpath("//table/tbody/tr/td"));
+        String cash = money.get(1).getText();
+
+        List<WebElement> trElements = driver.findElements(By.tagName("tr"));
+        String lastOrder = trElements.get(1).getText();
+        Assert.assertTrue(lastOrder.contains("Awaiting check payment"));
+        Assert.assertTrue(lastOrder.contains(cash));
+
+        Assert.assertTrue(isDiscountPrice);
+
     }
 }
